@@ -1,10 +1,14 @@
-import Image from "next/image";
-import LandingPage from "./pages/landingPage";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function Home() {
-  return (
-    <div className="flex min-h-screen items-center justify-center font-sans dark:bg-black">
-     <LandingPage/>
-    </div>
-  );
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/landingPage"); // replace = no back button
+  }, [router]);
+
+  return null; // or a loading spinner
 }

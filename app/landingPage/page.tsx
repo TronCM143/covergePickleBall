@@ -16,7 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import ConfirmationDialog from "../payment/confimation/page";
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flow_Rounded } from "next/font/google";
 
 export default function Page() {
   const [baseRange, setBaseRange] = useState<DateRange | undefined>();
@@ -25,7 +24,6 @@ export default function Page() {
   const [repeatCount, setRepeatCount] = useState(1); // Number of repetitions (e.g., for 5 weeks/months)
   const [startTime, setStartTime] = useState("8:00 AM");
   const [endTime, setEndTime] = useState("9:00 AM");
-  const [isSelectingTime, setIsSelectingTime] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [totalAmount, setTotalAmount] = useState(0);
                
@@ -114,36 +112,6 @@ export default function Page() {
     const totalHours = selectedDates.length * hoursPerDay;
     setTotalAmount(totalHours * 200);
   }, [selectedDates, startTime, endTime]);
-
-  const handleTimeMouseDown = (t: string) => {
-    setIsSelectingTime(true);
-    setStartTime(t);
-    setEndTime(t);
-  };
-
-  const handleTimeMouseEnter = (t: string) => {
-    if (isSelectingTime) {
-      setEndTime(t);
-    }
-  };
-
-  const handleTimeMouseUp = () => {
-    setIsSelectingTime(false);
-    // Ensure start < end
-    if (timeToMinutes(startTime) > timeToMinutes(endTime)) {
-      const prevStart = startTime;
-      const prevEnd = endTime;
-      setStartTime(prevEnd);
-      setEndTime(prevStart);
-    }
-  };
-
-  const isTimeInRange = (t: string) => {
-    const startMin = timeToMinutes(startTime);
-    const endMin = timeToMinutes(endTime);
-    const tMin = timeToMinutes(t);
-    return tMin >= Math.min(startMin, endMin) && tMin <= Math.max(startMin, endMin);
-  };
 
   const handleBooking = () => {
     if (selectedDates.length === 0) return alert("Please select at least one date");
@@ -256,43 +224,7 @@ export default function Page() {
               <h3 className="text-xl font-semibold text-center mb-4">Select Dates & Time Slot</h3>
 
               {/* Repeat Options */}
-             
-
-              {/* Calendar and Time Range Side-by-Side */}
-              <div className="flex justify-center mb-6">
-                <Calendar
-                  mode="range"
-                  selected={baseRange}
-                  onSelect={(range) => setBaseRange(range ?? { from: undefined, to: undefined })}
-                  disabled={{ before: new Date() }}
-                  className="rounded-md border"
-                />
-                <div className="ml-6 w-32">
-                  <div
-                    className="flex flex-col gap-0.5 max-h-72 overflow-y-auto border rounded-md p-1 bg-slate-50"
-                    onMouseLeave={() => setIsSelectingTime(false)}
-                  >
-                    {times.map((t) => (
-                        <div
-                        key={t}
-                        className={`px-2 py-1 text-sm cursor-pointer ${
-                          isTimeInRange(t) ? "bg-gray-900 text-white rounded-md p-1"  : "bg-white hover:bg-gray-400 rounded-md p-1"
-                        }`}
-                        onMouseDown={() => handleTimeMouseDown(t)}
-                        onMouseEnter={() => handleTimeMouseEnter(t)}
-                        onMouseUp={handleTimeMouseUp}
-                        >
-                        {t}
-                        </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Date Counter and Payment */}
-              <div className="text-center mb-4">
-                <p className="text-sm font-medium">Selected Days: {selectedDates.length}</p>
-                 <div className="flex justify-center gap-4 mb-4">
+              <div className="flex justify-center gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Repeat</label>
                   <Select
@@ -322,7 +254,56 @@ export default function Page() {
                   </div>
                 )}
               </div>
-                {/* <p className="text-lg font-bold mt-2">Total Payment: {totalAmount.toFixed(2)} PHP</p> */}
+
+              {/* Calendar and Time Range Side-by-Side */}
+              <div className="flex justify-center mb-6">
+                <Calendar
+                  mode="range"
+                  selected={baseRange}
+                  onSelect={(range) => setBaseRange(range ?? { from: undefined, to: undefined })}
+                  disabled={{ before: new Date() }}
+                  className="rounded-md border"
+                />
+                <div className="ml-6 w-32">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Start Time</label>
+                      <Select value={startTime} onValueChange={setStartTime}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {times.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">End Time</label>
+                      <Select value={endTime} onValueChange={setEndTime}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {times.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date Counter and Payment */}
+              <div className="text-center mb-4">
+                <p className="text-sm font-medium">Selected Days: {selectedDates.length}</p>
+                <p className="text-lg font-bold mt-2">Total Payment: {totalAmount.toFixed(2)} PHP</p>
               </div>
 
               <div className="flex justify-center gap-3">
@@ -350,7 +331,7 @@ export default function Page() {
               <Card>
                 <CardHeader>
                   <CardTitle>Reservation Summary</CardTitle>
-                </CardHeader>Booking Confirmed!
+                </CardHeader>
                 <CardContent className="text-left space-y-2">
                   <p><strong>Name:</strong> {fullName}</p>
                   <p><strong>GCash:</strong> {gcash}</p>
