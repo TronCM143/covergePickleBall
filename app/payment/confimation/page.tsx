@@ -36,7 +36,7 @@ export default function ConfirmationDialog({
   timeTo,
   totalAmount,
   title = "Confirm Reservation",
-  confirmLabel = "Confirm",
+  confirmLabel = "Book Now",
 }: ConfirmationDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

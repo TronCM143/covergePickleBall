@@ -117,10 +117,8 @@
     @apply border-border outline-ring/50;
   }
 
-  /* body {
-    background-image: url("/background2.jpeg");
-    background-size: cover;
-    background-position: center;
-  } */
-
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+  }
 }
