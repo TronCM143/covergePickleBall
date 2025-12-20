@@ -20,7 +20,7 @@ export default function BookingLayout({
                     className="min-h-screen bg-slate-50 flex flex-col"
                 >
                     {/* Sticky Header */}
-                    <header className="sticky top-0 z-50 border-b bg-white">
+                    <header className="sticky top-0 z-50 border-b bg-cyan-50">
                         <div className="container mx-auto lg:px-18 lg:py-5 px-10 py-4 flex justify-between items-center">
                             <h1 className="text-lg font-semibold">
                                 Pickleball Court Reservation
@@ -28,16 +28,28 @@ export default function BookingLayout({
                         </div>
                     </header>
 
-                    {/* Content (padding-top prevents overlap) */}
-                    <main className="flex-1 flex items-start justify-center lg:py-10 py-8 px-4">
-                        {children}
-                    </main>
+                <div
+                        className="flex-1 flex items-start justify-center"
+                        style={{
+                            backgroundImage:
+                                "url('https://images.alphacoders.com/115/1153879.jpg')",
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                        }}
+                    >
+                        {/* Optional dark overlay */}
+                        <div className="flex-1 w-full bg-black/40">
+                            <main className="flex items-start justify-center lg:py-10 py-8 px-4">
+                                {children}
+                            </main>
+                        </div>
+                    </div>
 
-                    <footer className="border-t bg-white">
+                    {/* <footer className="border-t bg-transparent">
                         <div className="container mx-auto px-4 py-3 text-center text-xs text-muted-foreground">
                             © {new Date().getFullYear()} Pickleball Reservation System
                         </div>
-                    </footer>
+                    </footer> */}
                 </motion.div>
             </AnimatePresence>
         </BookingProvider>
