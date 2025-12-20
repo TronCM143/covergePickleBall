@@ -23,6 +23,41 @@ import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carouse
 import AutoScroll from "embla-carousel-auto-scroll";
 
 export default function BookingPage() {
+     const courtImages = [
+        "/courts/pickleball1.jpg",
+        "/courts/pickleball2.jpg",
+        "/courts/pickleball3.jpg",
+        "/courts/pickleball4.jpg",
+        "/courts/pickleball5.jpg",
+        "/courts/pickleball6.jpg",
+        "/courts/pickleball7.jpg",
+    ];
+
+    const buildSlotsPayload = () => {
+    const slots: {
+        date: string;
+        startTime: string;
+        endTime: string;
+        courtId: string;
+    }[] = [];
+
+    Object.entries(dateTimes).forEach(([date, ranges]) => {
+        ranges.forEach((r) => {
+            slots.push({
+                date,
+                startTime: r.start,
+                endTime: r.end,
+                courtId: r.court,
+            });
+        });
+    });
+
+    return slots;
+};
+
+
+
+
     const router = useRouter();
 
     const {
@@ -42,7 +77,7 @@ export default function BookingPage() {
         totalAmount,
         setTotalAmount,
     } = useBooking();
-
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [isSuccessOpen, setIsSuccessOpen] = useState(false);
     const [conflictDates, setConflictDates] = useState<Date[]>([]);
@@ -70,15 +105,7 @@ export default function BookingPage() {
     };
 
     const dummyCourts = ["Court A", "Court B", "Court C"];
-    const courtImages = [
-        "/courts/pickleball1.jpg",
-        "/courts/pickleball2.jpg",
-        "/courts/pickleball3.jpg",
-        "/courts/pickleball4.jpg",
-        "/courts/pickleball5.jpg",
-        "/courts/pickleball6.jpg",
-        "/courts/pickleball7.jpg",
-    ];
+   
 
     const [activeDateIndex, setActiveDateIndex] = useState(0);
 
@@ -637,20 +664,54 @@ export default function BookingPage() {
             </div>
 
             {/* DIALOGS */}
-            <ConfirmationDialog
-                isOpen={isConfirmOpen}
-                onClose={() => setIsConfirmOpen(false)}
-                onConfirm={() => {
-                    setIsConfirmOpen(false);
-                    setIsSuccessOpen(true);
-                }}
-                fullName={`${firstName} ${lastName}`}
-                gcashNumber={gcash}
-                selectedDates={selectedDates}
-                timeFrom={startTime}
-                timeTo={endTime}
-                totalAmount={totalAmount}
-            />
+           <ConfirmationDialog
+    isOpen={isConfirmOpen}
+    onClose={() => setIsConfirmOpen(false)}
+    onConfirm={async () => {
+        setIsSubmitting(true);
+
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/bookings/create/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    firstName,
+                    lastName,
+                    gcashNumber: gcash,
+                    amount: totalAmount,
+                    slots: buildSlotsPayload(),
+                }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Booking failed");
+            }
+
+            const data = await res.json();
+            console.log("Booking success:", data);
+
+            setIsConfirmOpen(false);
+            setIsSuccessOpen(true);
+
+        } catch (error: any) {
+            alert(error.message || "Something went wrong");
+        } finally {
+            setIsSubmitting(false);
+        }
+    }}
+    firstName={firstName}
+    lastName={lastName}
+    gcashNumber={gcash}
+    selectedDates={sortedSelectedDates}
+    slots={buildSlotsPayload()}
+    totalAmount={totalAmount}
+    title="Confirm Your Booking"
+    confirmLabel="Submit Booking"
+/>
+
 
             <SuccessDialog
                 isOpen={isSuccessOpen}
@@ -660,9 +721,8 @@ export default function BookingPage() {
                 }}
                 fullName={`${firstName} ${lastName}`}
                 gcashNumber={gcash}
-                selectedDates={selectedDates}
-                timeFrom={startTime}
-                timeTo={endTime}
+                selectedDates={sortedSelectedDates}
+                slots={buildSlotsPayload()}
                 totalAmount={totalAmount}
             />
         </main>
