@@ -22,6 +22,7 @@ interface ConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  isSubmitting?: boolean;
   firstName: string;
   lastName: string;
   gcashNumber: string;
@@ -36,10 +37,10 @@ export default function ConfirmationDialog({
   isOpen,
   onClose,
   onConfirm,
+  isSubmitting = false,
   firstName,
   lastName,
   gcashNumber,
-  selectedDates,
   slots,
   totalAmount,
   title = "Confirm Your Booking",
@@ -117,8 +118,8 @@ export default function ConfirmationDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onConfirm}>
-            {confirmLabel}
+          <Button onClick={onConfirm} disabled={isSubmitting}>
+            {isSubmitting ? "Submitting..." : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

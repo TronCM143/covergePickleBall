@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,13 @@ import ConfirmationDialog from "@/app/payment/confimation/page";
 import SuccessDialog from "@/app/payment/success/page";
 import { useBooking } from "@/app/context/bookingContext";
 import { SelectViewport } from "@radix-ui/react-select";
-import { CircleX } from "lucide-react";
+import { CircleX, X } from "lucide-react";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import AutoScroll from "embla-carousel-auto-scroll";
 
 export default function BookingPage() {
-     const courtImages = [
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const courtImages = [
         "/courts/pickleball1.jpg",
         "/courts/pickleball2.jpg",
         "/courts/pickleball3.jpg",
@@ -33,33 +34,6 @@ export default function BookingPage() {
         "/courts/pickleball7.jpg",
     ];
 
-    const buildSlotsPayload = () => {
-    const slots: {
-        date: string;
-        startTime: string;
-        endTime: string;
-        courtId: string;
-    }[] = [];
-
-    Object.entries(dateTimes).forEach(([date, ranges]) => {
-        ranges.forEach((r) => {
-            slots.push({
-                date,
-                startTime: r.start,
-                endTime: r.end,
-                courtId: r.court,
-            });
-        });
-    });
-
-    return slots;
-};
-
-
-
-
-    const router = useRouter();
-
     const {
         firstName,
         setFirstName,
@@ -67,19 +41,20 @@ export default function BookingPage() {
         setLastName,
         gcash,
         setGcash,
-
         selectedDates,
         setSelectedDates,
-
-        startTime,
-        endTime,
-
         totalAmount,
         setTotalAmount,
     } = useBooking();
+
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+    const [showQrModal, setShowQrModal] = useState(false);
+    const [qrImageUrl, setQrImageUrl] = useState<string>("");
+    const [transactionId, setTransactionId] = useState<string>("");
     const [conflictDates, setConflictDates] = useState<Date[]>([]);
 
     const times = [
@@ -105,9 +80,12 @@ export default function BookingPage() {
     };
 
     const dummyCourts = ["Court A", "Court B", "Court C"];
-   
-
     const [activeDateIndex, setActiveDateIndex] = useState(0);
+    const [dateTimes, setDateTimes] = useState<Record<string, DateTimeInfo[]>>({});
+    const sortedSelectedDates = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+    const activeKey = sortedSelectedDates[activeDateIndex]
+        ? format(sortedSelectedDates[activeDateIndex], "yyyy-MM-dd")
+        : "";
 
     interface DateTimeInfo {
         start: string;
@@ -115,7 +93,27 @@ export default function BookingPage() {
         court: string;
     }
 
-    const [dateTimes, setDateTimes] = useState<Record<string, DateTimeInfo[]>>({});
+    const buildSlotsPayload = () => {
+        const slots: {
+            date: string;
+            startTime: string;
+            endTime: string;
+            courtId: string;
+        }[] = [];
+
+        Object.entries(dateTimes).forEach(([date, ranges]) => {
+            ranges.forEach((r) => {
+                slots.push({
+                    date,
+                    startTime: r.start,
+                    endTime: r.end,
+                    courtId: r.court,
+                });
+            });
+        });
+
+        return slots;
+    };
 
     useEffect(() => {
         const times: Record<string, DateTimeInfo[]> = {};
@@ -296,11 +294,69 @@ export default function BookingPage() {
         setIsConfirmOpen(true);
     };
 
-    const sortedSelectedDates = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+    const submitBooking = async () => {
+        setIsSubmitting(true);
+        try {
+            const res = await fetch(`${apiBaseUrl}/api/payments/create/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    firstName,
+                    lastName,
+                    gcashNumber: gcash,
+                    slots: buildSlotsPayload(),
+                }),
+            });
 
-    const activeKey = sortedSelectedDates[activeDateIndex]
-        ? format(sortedSelectedDates[activeDateIndex], "yyyy-MM-dd")
-        : "";
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Payment initialization failed");
+            }
+
+            const data = await res.json();
+
+            setQrImageUrl(data.qrImageUrl);
+            setTransactionId(data.transactionId);
+            setShowQrModal(true);
+            setIsConfirmOpen(false);
+
+        } catch (error: any) {
+            alert(error.message || "Something went wrong");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // Poll for payment status every 3 seconds
+    useEffect(() => {
+        if (!showQrModal || !transactionId) return;
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`${apiBaseUrl}/api/payments/status/${transactionId}/`);
+                const data = await res.json();
+
+                if (data.status === "paid") {
+                    setShowQrModal(false);
+                    setIsSuccessOpen(true);
+                    clearInterval(pollInterval);
+                }
+            } catch (error) {
+                console.error("Error checking payment status:", error);
+            }
+        }, 3000);
+
+        return () => clearInterval(pollInterval);
+    }, [showQrModal, transactionId, apiBaseUrl]);
+
+    useEffect(() => {
+        const status = searchParams.get("status");
+        if (status === "success") {
+            setIsSuccessOpen(true);
+        }
+    }, [searchParams]);
 
     return (
         <main className="container mx-auto px-4">
@@ -332,10 +388,8 @@ export default function BookingPage() {
                         </CarouselContent>
                     </Carousel>
 
-                    {/* Overlay */}
                     <div className="absolute inset-0 bg-cyan-900/75" />
 
-                    {/* Text content */}
                     <div className="absolute inset-0 flex items-center">
                         <div className="px-6 sm:px-10 max-w-xl text-white">
                             <h1 className="text-2xl sm:text-3xl font-bold tracking-wide">
@@ -349,8 +403,8 @@ export default function BookingPage() {
                         </div>
                     </div>
                 </div>
+
                 <div className="max-w-4xl mx-auto rounded-b-lg border p-6 shadow-sm bg-white">
-                    {/* DETAILS */}
                     <div className="grid gap-4 sm:grid-cols-3 mb-6">
                         <div>
                             <label className="text-sm font-medium">First Name</label>
@@ -385,10 +439,8 @@ export default function BookingPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 items-stretch">
-                        {/* Calendar */}
                         <div className="flex items-stretch sm:col-span-1">
                             <div className="w-full flex flex-col gap-3">
-                                {/* Calendar - Multiple Selection Mode */}
                                 <Calendar
                                     mode="multiple"
                                     required
@@ -403,7 +455,6 @@ export default function BookingPage() {
                             </div>
                         </div>
 
-                        {/* Time + Schedule Panel */}
                         <div className="flex flex-col sm:col-span-2 border p-4 rounded-md bg-white min-h-full">
                             {sortedSelectedDates.length > 0 && sortedSelectedDates[activeDateIndex] ? (
                                 <>
@@ -439,7 +490,6 @@ export default function BookingPage() {
                                                         setDateTimes({
                                                             ...dateTimes,
                                                             [activeKey]: (dateTimes[activeKey] ?? [{ start: "8:00 AM", end: "9:00 AM", court: v }]).map(r => ({ ...r, court: v })),
-
                                                         })
                                                     }
                                                 >
@@ -464,11 +514,7 @@ export default function BookingPage() {
 
                                                 {dateTimes[format(sortedSelectedDates[activeDateIndex], "yyyy-MM-dd")]?.map((range, idx) => (
                                                     <div key={idx} className="flex items-center w-full space-x-2">
-
-                                                        {/* Time Range Selector Container */}
                                                         <div className="flex flex-1 rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm overflow-hidden bg-white dark:bg-gray-800">
-
-                                                            {/* Start Time Select */}
                                                             <div className="flex-1">
                                                                 <Select
                                                                     value={range.start}
@@ -510,10 +556,8 @@ export default function BookingPage() {
                                                                 </Select>
                                                             </div>
 
-                                                            {/* Separator */}
                                                             <div className="w-px bg-gray-300 dark:bg-gray-600 my-1"></div>
 
-                                                            {/* End Time Select */}
                                                             <div className="flex-1">
                                                                 <Select
                                                                     value={range.end}
@@ -577,7 +621,6 @@ export default function BookingPage() {
                                                     </div>
                                                 ))}
 
-                                                {/* Add new range button */}
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -594,7 +637,6 @@ export default function BookingPage() {
                                                     + Add Time
                                                 </Button>
 
-                                                {/* Apply to all dates button */}
                                                 <Button
                                                     variant="default"
                                                     size="sm"
@@ -636,7 +678,6 @@ export default function BookingPage() {
                                             </div>
                                         </div>
                                     </div>
-
                                 </>
                             ) : (
                                 <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
@@ -646,7 +687,6 @@ export default function BookingPage() {
                         </div>
                     </div>
 
-                    {/* SUMMARY */}
                     <div className="text-center mb-6">
                         <p className="text-sm">Selected Days: {selectedDates.length}</p>
                         <p className="text-lg font-bold">
@@ -654,7 +694,6 @@ export default function BookingPage() {
                         </p>
                     </div>
 
-                    {/* ACTION */}
                     <div className="flex justify-center my-4">
                         <Button size="lg" onClick={handleBooking}>
                             Review & Confirm
@@ -664,60 +703,81 @@ export default function BookingPage() {
             </div>
 
             {/* DIALOGS */}
-           <ConfirmationDialog
-    isOpen={isConfirmOpen}
-    onClose={() => setIsConfirmOpen(false)}
-    onConfirm={async () => {
-        setIsSubmitting(true);
+            <ConfirmationDialog
+                isOpen={isConfirmOpen}
+                onClose={() => setIsConfirmOpen(false)}
+                onConfirm={submitBooking}
+                isSubmitting={isSubmitting}
+                firstName={firstName}
+                lastName={lastName}
+                gcashNumber={gcash}
+                selectedDates={sortedSelectedDates}
+                slots={buildSlotsPayload()}
+                totalAmount={totalAmount}
+                title="Confirm Your Booking"
+                confirmLabel="Submit Booking"
+            />
 
-        try {
-            const res = await fetch(`http://127.0.0.1:8000/api/bookings/create/`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    firstName,
-                    lastName,
-                    gcashNumber: gcash,
-                    amount: totalAmount,
-                    slots: buildSlotsPayload(),
-                }),
-            });
+            {/* QR Code Modal */}
+            {showQrModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold">Scan to Pay</h2>
+                            <button
+                                onClick={() => setShowQrModal(false)}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Booking failed");
-            }
+                        <div className="text-center mb-6">
+                            <p className="text-gray-600 mb-4">Use your phone to scan this QR code to complete payment</p>
+                            {qrImageUrl && (
+                                <img
+                                    src={qrImageUrl}
+                                    alt="QR Code"
+                                    className="w-full max-w-xs mx-auto border-4 border-gray-200 rounded-lg"
+                                />
+                            )}
+                        </div>
 
-            const data = await res.json();
-            console.log("Booking success:", data);
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <p className="text-sm text-blue-800">
+                                <strong>⏱️ QR Code Expires in 30 minutes</strong>
+                                <br />
+                                This code is valid for a single transaction only.
+                            </p>
+                        </div>
 
-            setIsConfirmOpen(false);
-            setIsSuccessOpen(true);
+                        <div className="space-y-3">
+                            <div className="text-sm">
+                                <p className="text-gray-700">
+                                    <strong>Amount:</strong> ₱{totalAmount.toFixed(2)}
+                                </p>
+                                <p className="text-gray-700 mt-2">
+                                    <strong>Transaction ID:</strong> <code className="bg-gray-100 px-2 py-1 rounded text-xs">{transactionId}</code>
+                                </p>
+                            </div>
+                        </div>
 
-        } catch (error: any) {
-            alert(error.message || "Something went wrong");
-        } finally {
-            setIsSubmitting(false);
-        }
-    }}
-    firstName={firstName}
-    lastName={lastName}
-    gcashNumber={gcash}
-    selectedDates={sortedSelectedDates}
-    slots={buildSlotsPayload()}
-    totalAmount={totalAmount}
-    title="Confirm Your Booking"
-    confirmLabel="Submit Booking"
-/>
-
+                        <Button
+                            variant="outline"
+                            className="w-full mt-6"
+                            onClick={() => setShowQrModal(false)}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             <SuccessDialog
                 isOpen={isSuccessOpen}
                 onClose={() => {
                     setIsSuccessOpen(false);
-                    router.push("/");
+                    router.replace("/booking")
                 }}
                 fullName={`${firstName} ${lastName}`}
                 gcashNumber={gcash}
